@@ -51,33 +51,40 @@ var heartbleedChecker = {
   },
 
   displayWarning: function() {
-    var div = document.createElement('div');
-    div.style.backgroundImage = "url('" + chrome.extension.getURL("images/semi-transparent.png") + "')";
-    div.style.width = "100%";
-    div.style.height = "100%";
-    div.style.position = "absolute";
-    div.style.left = "0";
-    div.style.top = "0";
-    div.style.zIndex = "9999";
-    div.id = "heartbleed-blackout";
+    var key = window.location.hostname + "-heartbleed-settings-remember";
+    _this = this;
+    chrome.storage.sync.get(key, function(items) {
+      // Make sure we haven't shown this page and been told not to again
+      if (items[key]) return;
 
-    // Load page content in from local store
-    var url = chrome.extension.getURL("insecure.html");
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-    xhr.setRequestHeader("Content-Type", "text/html");
-    xhr.onreadystatechange = function (e) {
-      var xhr = e.target;
-      if (xhr.readyState == 4) {
-        div.innerHTML = xhr.responseText;
-      }
-    };
-    xhr.send(null);
+      var div = document.createElement('div');
+      div.style.backgroundImage = "url('" + chrome.extension.getURL("images/semi-transparent.png") + "')";
+      div.style.width = "100%";
+      div.style.height = "100%";
+      div.style.position = "absolute";
+      div.style.left = "0";
+      div.style.top = "0";
+      div.style.zIndex = "9999";
+      div.id = "heartbleed-blackout";
 
-    // Append to body
-    document.body.appendChild(div);
+      // Load page content in from local store
+      var url = chrome.extension.getURL("insecure.html");
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.setRequestHeader("Content-Type", "text/html");
+      xhr.onreadystatechange = function (e) {
+        var xhr = e.target;
+        if (xhr.readyState == 4) {
+          div.innerHTML = xhr.responseText;
+        }
+      };
+      xhr.send(null);
 
-    this.bindWarning();
+      // Append to body
+      document.body.appendChild(div);
+
+      _this.bindWarning();
+    });
   },
 
   /**
@@ -93,6 +100,12 @@ var heartbleedChecker = {
     document.getElementById("heartbleed-accept").addEventListener("click", function (e) {
       // Hide display and remember that we hid it for future checks
       document.getElementById("heartbleed-blackout").style.display = "none";
+
+      if (document.getElementById("heartbleed-remember").checked) {
+        var obj = {};
+        obj[window.location.hostname + "-heartbleed-settings-remember"] = true;
+        chrome.storage.sync.set(obj);
+      }
     });
   },
 };
