@@ -16,5 +16,10 @@
       "js": ["heartbleedchecker.js"],
       "run_at": "document_end"
     }
+  ],
+
+  "web_accessible_resources": [
+    "images/*.png",
+    "insecure.html"
   ]
 }
