@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+
+  "name": "Heartbleed Checker",
+  "description": "Automatically check every page you visit to ensure they have patched the Heartbleed OpenSSL bug (CVE-2014-0160)",
+  "version": "0.1",
+
+  "permissions": [
+    "https://heartbleedchecker.herokuapp.com/"
+  ],
+  "browser_action": {
+    "default_popup": "insecure.html"
+  }
+}
