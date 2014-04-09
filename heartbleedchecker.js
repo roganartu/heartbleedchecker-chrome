@@ -11,6 +11,9 @@ var heartbleedChecker = {
    */
   baseURL: 'https://heartbleedchecker.herokuapp.com/check/',
 
+  cacheKey: window.location.hostname + "-heartbleed-settings-cache",
+  rememberKey: window.location.hostname + "-heartbleed-settings-remember",
+
   /**
    * Sends an XHR GET request to check current host for heartbleed vuln
    *
@@ -18,19 +21,26 @@ var heartbleedChecker = {
    * @public
    */
   checkHost: function(host) {
-    var url = this.baseURL + encodeURIComponent(host);
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.onreadystatechange = this.checkResult.bind(this);
-    xhr.send(null);
+    var _this = this;
+    chrome.storage.sync.get(this.cacheKey, function(items) {
+      if (!items.hasOwnProperty(_this.cacheKey)) {
+        var url = _this.baseURL + encodeURIComponent(host);
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = _this.checkResult.bind(_this);
+        xhr.send(null);
+      } else {
+        _this.processResult(items[_this.cacheKey], _this);
+      }
+    });
   },
 
   /**
    * Handle the 'onload' event of the checkHost XHR request.
    * Only displays a warning screen if host is vulnerable.
-   * Caches result in local storage with 24h timeout to prevent
-   * constant requerying.
+   * Caches result in local storage to prevent constant
+   * requerying.
    *
    * @param {ProgressEvent} e The XHR ProgressEvent.
    * @private
@@ -38,24 +48,43 @@ var heartbleedChecker = {
   checkResult: function (e) {
     var xhr = e.target;
     if (xhr.readyState == 4) {
-      var resp = JSON.parse(xhr.responseText);
-      if (/^SECURE/.test(resp.data)) {
-        // Do nothing, site secure
-      } else if (/^INSECURE/.test(resp.data)) {
-        console.log("Current host is vulnerable to Heartbleed OpenSSL bug CVE-2014-0160");
-        this.displayWarning();
-      } else {
-        console.log("Error determining Heartbleed vulnerability: " + resp.data);
-      }
+      this.processResult(JSON.parse(xhr.responseText));
     }
   },
 
+  /**
+   * Actually process a result string.
+   * Allows processing directly from local cache.
+   *
+   * @param {Object} result Result of request from server
+   * @private
+   */
+  processResult: function(result) {
+    if (/^SECURE/.test(result.data)) {
+      // Do nothing, site secure
+    } else if (/^INSECURE/.test(result.data)) {
+      console.log("Current host is vulnerable to Heartbleed OpenSSL bug CVE-2014-0160");
+      this.displayWarning();
+    } else {
+      console.log("Error determining Heartbleed vulnerability: " + result.data);
+    }
+
+    // Cache result permanently
+    var _this = this;
+    chrome.storage.sync.get(this.cacheKey, function(items) {
+      if (!items.hasOwnProperty(_this.cacheKey)) {
+        var obj = {};
+        obj[_this.cacheKey] = result;
+        chrome.storage.sync.set(obj);
+      }
+    });
+  },
+
   displayWarning: function() {
-    var key = window.location.hostname + "-heartbleed-settings-remember";
-    _this = this;
-    chrome.storage.sync.get(key, function(items) {
+    var _this = this;
+    chrome.storage.sync.get(this.rememberKey, function(items) {
       // Make sure we haven't shown this page and been told not to again
-      if (items[key]) return;
+      if (items[_this.rememberKey]) return;
 
       var div = document.createElement('div');
       div.style.backgroundImage = "url('" + chrome.extension.getURL("images/semi-transparent.png") + "')";
@@ -97,13 +126,15 @@ var heartbleedChecker = {
       setTimeout(this.bindWarning, 50);
       return;
     }
+
     document.getElementById("heartbleed-accept").addEventListener("click", function (e) {
       // Hide display and remember that we hid it for future checks
       document.getElementById("heartbleed-blackout").style.display = "none";
 
       if (document.getElementById("heartbleed-remember").checked) {
         var obj = {};
-        obj[window.location.hostname + "-heartbleed-settings-remember"] = true;
+        // setTimeout above loses context so this doesn't work
+        obj[heartbleedChecker.rememberKey] = true;
         chrome.storage.sync.set(obj);
       }
     });
